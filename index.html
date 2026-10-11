@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESP32 Bluetooth LED Control</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 40px 15px;
+      background: #101827;
+      color: white;
+    }
+    .card {
+      max-width: 400px;
+      margin: auto;
+      padding: 25px;
+      background: #1e293b;
+      border-radius: 20px;
+    }
+    button {
+      width: 100%;
+      padding: 16px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 10px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+    #connect { background: #38bdf8; }
+    #on { background: #22c55e; }
+    #off { background: #ef4444; color: white; }
+    #status { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>ESP32 LED Control</h1>
+    <p>Bluetooth Low Energy</p>
+
+    <button id="connect">Connect Bluetooth</button>
+    <button id="on">LED ON</button>
+    <button id="off">LED OFF</button>
+
+    <p id="status">Not connected</p>
+  </div>
+
+  <script>
+    const SERVICE_UUID =
+      "12345678-1234-1234-1234-1234567890ab";
+
+    const CHARACTERISTIC_UUID =
+      "abcdefab-1234-1234-1234-abcdefabcdef";
+
+    let characteristic = null;
+
+    document.getElementById("connect").onclick = async () => {
+      try {
+        if (!navigator.bluetooth) {
+          throw new Error(
+            "Web Bluetooth unavailable. Open this HTTPS page in compatible Chrome."
+          );
+        }
+
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: "ESP32_LED_CONTROL" }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        const server = await device.gatt.connect();
+
+        const service = await server.getPrimaryService(SERVICE_UUID);
+
+        characteristic = await service.getCharacteristic(
+          CHARACTERISTIC_UUID
+        );
+
+        document.getElementById("status").textContent =
+          "Connected to " + device.name;
+
+        device.addEventListener("gattserverdisconnected", () => {
+          characteristic = null;
+          document.getElementById("status").textContent =
+            "Bluetooth disconnected";
+        });
+
+      } catch (error) {
+        document.getElementById("status").textContent =
+          "Error: " + error.message;
+      }
+    };
+
+    async function sendCommand(command) {
+      if (!characteristic) {
+        document.getElementById("status").textContent =
+          "Connect Bluetooth first!";
+        return;
+      }
+
+      try {
+        const data = new TextEncoder().encode(command);
+
+        await characteristic.writeValue(data);
+
+        document.getElementById("status").textContent =
+          "Command sent: LED " + command;
+
+      } catch (error) {
+        document.getElementById("status").textContent =
+          "Error: " + error.message;
+      }
+    }
+
+    document.getElementById("on").onclick =
+      () => sendCommand("ON");
+
+    document.getElementById("off").onclick =
+      () => sendCommand("OFF");
+  </script>
+</body>
+</html>
